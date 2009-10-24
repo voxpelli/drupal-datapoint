@@ -50,7 +50,7 @@ function _datapoint_admin_index_page() {
     $rows[] = array(
       $row->name . ($row->managed?(' ' . t('(managed)')):''),
       $row->sid,
-      l($row->source_type, 'admin/content/datapoint/source-type/' . $row->source_type, $dest),
+      l($row->source_type, 'admin/content/datapoint/source-types/' . $row->source_type, $dest),
       ($row->last_update ? format_date($row->last_update) : t('Not updated')) .
         ($row->pinged?(' ' . t('(pinged)')):''),
       $row->dirty,
@@ -68,46 +68,81 @@ function _datapoint_admin_index_page() {
   return $out;
 }
 
-function _datapoint_admin_source_types() {
-  global $pager_total, $pager_page_array;
+function _datapoint_admin_source_type_list() {
+  $header = array(
+    array('data' => t('Name'),          'class' => 'datapoint-source-type-name'),
+    array('data' => t('Parser'),        'class' => 'datapoint-source-type-parser'),
+    array('data' => t('Creates nodes'), 'class' => 'datapoint-source-type-content-type'),
+    array('data' => t('Storage'),       'class' => 'datapoint-source-type-storage'),
+  );
 
-  $dest = array('query' => array('destination' => $_GET['q']));
-  $page = isset($_GET['page'])?$_GET['page']:0;
-  $total = db_result(db_query('SELECT COUNT(type) FROM {datapoint_source_type}'));
-  $page_size = 20;
+  $header[] = array('data' => t('Operations'), 'class' => 'datapoint-source-type-operations');
 
-  $pager_page_array[0] = $page;
-  $pager_total[0] = $total;
+  $dest          = array('query' => array('destination' => $_GET['q']));
+  $source_types  = datapoint_source_type_load_all();
+  $rows          = array();
 
-  $res = db_query_range("SELECT * FROM {datapoint_source_type}
-    ORDER BY name, managed", $page * $page_size, $page_size);
-  $header = array(t('Name'), t('Parser'), t('Creates nodes'), array('data' => t('Operations'), 'colspan' => '2'));
-  $rows = array();
+  foreach ($source_types as $source_type) {
+    $operations = array();
 
-  if ($total>$page_size) {
-    $out = theme('pager', $page_size);
-  }
+    $operations[] = array(
+      'title' => t('Edit'),
+      'href'  => 'admin/content/datapoint/source-types/' . $source_type->typename,
+    ) + $dest;
+    $operations[] = array(
+      'title' => t('Export'),
+      'href'  => 'admin/content/datapoint/source-types/' . $source_type->typename . '/export',
+    ) + $dest;
 
-  while ($row = db_fetch_object($res)) {
-    $conf = unserialize($row->configuration);
-    $rows[] = array(
-      $row->name . ($row->managed?(' ' . t('(managed)')):''),
-      $conf['parser'],
-      $conf['content_type'] ? $conf['content_type'] : '<b>' . t('No') . '</b>',
-      l(t('Edit'), 'admin/content/datapoint/source-type/' . $row->type, $dest),
-      l(t('Export'), 'admin/content/datapoint/source-types/export/' . $row->type, $dest),
+    if ($source_type->export_type == (EXPORT_IN_CODE | EXPORT_IN_DATABASE)) {
+      $operations[] = array(
+        'title' => t('Revert'),
+        'href'  => 'admin/content/datapoint/source-types/' . $source_type->typename . '/delete',
+      );
+    }
+    elseif ($source_type->export_type != EXPORT_IN_CODE) {
+      //TODO: Make it possible to delete it
+      /*$operations[] = array(
+        'title' => t('Delete'),
+        'href'  => 'admin/content/datapoint/source-types/' . $source_type->typename . '/delete',
+      );*/
+    }
+
+    $rows[$source_type->typename] = array(
+      'data' => array(
+        'name' => array(
+          'data'  => $source_type->name,
+          'class' => 'datapoint-source-type-name',
+        ),
+        'preset' => array(
+          'data'  => $source_type->configuration['preset'],
+          'class' => 'datapoint-source-type-preset',
+        ),
+        'content_type' => array(
+          'data'  => $source_type->configuration['content_type'] ? $source_type->configuration['content_type'] : '<b>' . t('No') . '</b>',
+          'class' => 'datapoint-source-type-content-type',
+        ),
+        'storage' => array(
+          'data'  => ($source_type->export_type == EXPORT_IN_CODE) ? t('In code') : t('In database'),
+          'class' => 'datapoint-source-type-storage',
+        ),
+        'operations' => array(
+          'data'  => theme('links', $operations),
+          'class' => 'datapoint-source-type-operations',
+        ),
+      ),
+      'class' => 'datapoint-source-type-' . $source_type->typename,
+      //'title => ??
     );
   }
-  $out .= theme('table', $header, $rows);
 
-  if ($total>$page_size) {
-    $out .= theme('pager', $page_size);
-  }
+  $table = theme('table', $header, $rows, array('id' => 'datapoint-source-type-list'));
 
-  return $out;
+  return $table;
 }
 
 function _datapoint_admin_add_source_type($state) {
+  //TODO: Perhaps use a ctools backed datapoint_source_type_news() function?
   //Build the parser options
   $modules = module_implements('datapoint_parser');
   $parsers = array('' => t('-- Select a data parser'));
@@ -164,18 +199,18 @@ function _datapoint_admin_add_source_type_configure($form_state, $parser, $conte
   );
 
   if ($type) {
-    $form['type'] = array(
+    $form['typename'] = array(
       '#type' => 'value',
-      '#value' => $type['type'],
+      '#value' => $type->typename,
     );
     $form['display_type'] = array(
       '#type' => 'item',
       '#title' => t('Type'),
-      '#value' => $type['type'],
+      '#value' => $type->typename,
     );
   }
   else {
-    $form['type'] = array(
+    $form['typename'] = array(
       '#type' => 'textfield',
       '#title' => t('Type'),
       '#required' => TRUE,
@@ -189,7 +224,7 @@ function _datapoint_admin_add_source_type_configure($form_state, $parser, $conte
     '#title' => t('Name'),
     '#required' => TRUE,
     '#description' => t('The human-readable name of this source type.'),
-    '#default_value' => $type?$type['name']:'',
+    '#default_value' => $type ? $type->name : '',
   );
 
   if ($content_type) {
@@ -213,7 +248,7 @@ function _datapoint_admin_add_source_type_configure($form_state, $parser, $conte
         '#title' => $finfo['label'],
         '#required' => isset($finfo['required']) && $finfo['required'],
         '#options' => $dp_field_options,
-        '#default_value' => $type?$type['fields'][$name]['source']:'',
+        '#default_value' => $type ? $type->configuration['fields'][$name]['source'] : '',
         '#ahah' => array(
           'method' => 'replace',
           'wrapper' => 'field-source-' . $name . '-configuration-placeholder',
@@ -221,9 +256,9 @@ function _datapoint_admin_add_source_type_configure($form_state, $parser, $conte
         ),
       );
 
-      $source = $type['fields'][$name]['source'];
+      $source = $type->configuration['fields'][$name]['source'];
       if ($type && !empty($source) && is_callable($dp_fields[$source]['configuration_form'])) {
-        $set = call_user_func($dp_fields[$source]['configuration_form'], $form_state, $name);
+        $conf = call_user_func($dp_fields[$source]['configuration_form'], $form_state, $name);
       }
       else {
         $conf = array(
@@ -263,22 +298,21 @@ function _datapoint_admin_add_source_type_configure($form_state, $parser, $conte
 }
 
 function _datapoint_admin_add_source_type_configure_validate($form, &$form_state) {
-  $configuration = datapoint_source_type_configuration_from_form_values($form_state['values']);
-  if (!preg_match('!^[a-z0-9_]+$!', $configuration['type'])) {
-    form_set_error('type', t('The machine-readable name must contain only lowercase letters, numbers, and underscores.'));
+  $source_type = datapoint_source_type_configuration_from_form_values($form_state['values']);
+  if (!preg_match('!^[a-z0-9_]+$!', $source_type->typename)) {
+    form_set_error('typename', t('The machine-readable name must contain only lowercase letters, numbers, and underscores.'));
   }
-  if (datapoint_source_type($configuration['type'])) {
-    form_set_error('type', t('The machine-readable name %type is already taken.', array(
-      '%type' => $configuration['type'])));
+  if (datapoint_source_type_load($source_type->typename)) {
+    form_set_error('typename', t('The machine-readable name %type is already taken.', array('%type' => $source_type->typename)));
   }
 }
 
 function _datapoint_admin_add_source_type_configure_submit($form, $form_state) {
-  $configuration = datapoint_source_type_configuration_from_form_values($form_state['values']);
-  datapoint_add_source_type($configuration);
+  $source_type = datapoint_source_type_configuration_from_form_values($form_state['values']);
+  datapoint_source_type_save($source_type);
 
   drupal_set_message(t('The datapoint source type "!name" has been added', array(
-    '!name' => $configuration['name'],
+    '!name' => $source_type->name,
   )));
   drupal_goto('admin/content/datapoint/source-types');
 }
@@ -287,16 +321,18 @@ function datapoint_source_type_configuration_from_form_values($values) {
   $parser = $values['parser'];
   $content_type = $values['content_type'];
 
-  $configuration = array(
-    'type' => $values['type'],
-    'name' => $values['name'],
-    'content_type' => $content_type,
-    'parser' => $parser,
+  $source_type = (object)array(
+    'typename' => $values['typename'],
+    'name'     => $values['name'],
+    'configuration' => array(
+      'content_type' => $content_type,
+      'parser'       => $parser,
+    ),
   );
 
   if ($content_type) {
-    $configuration['fields'] = array();
-    $configuration['taxonomy'] = taxonomy_preview_terms((object)array('taxonomy' => $values['taxonomy']));
+    $source_type->configuration['fields'] = array();
+    $source_type->configuration['taxonomy'] = taxonomy_preview_terms((object)array('taxonomy' => $values['taxonomy']));
 
     $fields = datapoint_managed_fields($content_type);
     $source_fields = datapoint_source_fields($parser);
@@ -313,13 +349,12 @@ function datapoint_source_type_configuration_from_form_values($values) {
           $field_conf['configuration'] = call_user_func($source['configuration_form'] . '_submit', $name, $values);
         }
 
-        $configuration['fields'][$name] = $field_conf;
+        $source_type->configuration['fields'][$name] = $field_conf;
       }
-      $dp_field_options[$name] = $def['description'];
     }
   }
 
-  return $configuration;
+  return $source_type;
 }
 
 function datapoint_ahah_field_source_configuration($parser, $field) {
@@ -362,7 +397,7 @@ function _datapoint_source_add() {
   $modules = module_implements('datapoint');
   $source_types = array_merge(array(
     0 => t('-- Select a source type'),
-  ), datapoint_source_types());
+  ), datapoint_source_type_options_list());
   foreach ($modules as $module) {
     $info = call_user_func($module . '_datapoint');
     $source_types[$module] = $info['name'];
@@ -410,10 +445,10 @@ function datapoint_source_configuration_from_form_values($values) {
     'taxonomy' => taxonomy_preview_terms((object)$values),
   );
 
-  $type = datapoint_source_type($values['source_type']);
-  $configuration['parser'] = $type['parser'];
+  $type = datapoint_source_type_load($values['source_type']);
+  $configuration['parser'] = $type->configuration['parser'];
 
-  $info = datapoint_parser_info($type['parser']);
+  $info = datapoint_parser_info($configuration['parser']);
   if (isset($info['source configuration submit'])) {
     $configuration['source configuration'] = call_user_func($info['source configuration submit'], $values);
   }
@@ -426,45 +461,8 @@ function _datapoint_source_add_submit($form, $form_state) {
   datapoint_add_source($configuration);
 }
 
-function datapoint_ahah_custom_node_configuration() {
-  $cached_form_state = array();
-  $cached_form = form_get_cache($_POST['form_build_id'], $cached_form_state);
-
-  $type_name = $_POST['source_type'];
-  if (isset($_POST['custom_node_configuration'])) {
-    $custom = $_POST['custom_node_configuration'];
-  }
-  else {
-    $custom = TRUE;
-  }
-
-  if (!$custom) {
-    $set = array(
-      '#value' => '<span></span>',
-    );
-  }
-  elseif (empty($type_name)) {
-    $set = array(
-      '#value' => '<div class="message notice message-notice">' .
-        t('Please select a source type before customizing node settings') . '</span>',
-    );
-  }
-  else {
-    $type = datapoint_source_type($type_name);
-    $set = datapoint_node_configuration_form($type, array());
-  }
-
-  $cached_form['node_configuration'] = $set;
-  form_set_cache($_POST['form_build_id'], $cached_form, $cached_form_state);
-  $form_state = array('submitted' => FALSE);
-  $set = form_builder('datapoint_ahah_custom_node_configuration', $set, $form_state);
-  $output = drupal_render($set);
-  print drupal_to_js(array('status' => TRUE, 'data' => $output));
-  exit;
-}
-
 function datapoint_source_configuration_form($type, $configuration) {
-  $info = datapoint_parser_info($type['parser']);
+  $info = datapoint_parser_info($type->configuration['parser']);
   if (isset($info['source configuration'])) {
     $form = call_user_func($info['source configuration'], array());
   }
@@ -473,13 +471,16 @@ function datapoint_source_configuration_form($type, $configuration) {
   }
 
   // Simulate a node form to get the taxonomy module to alter our form
-  $form['type'] = array('#type' => 'value', '#value' => $type['content_type']);
-  $form['#node'] = (object)array(
-    'nid' => 0,
-    'type' => $type['content_type'],
-    'taxonomy' => $type['taxonomy'],
+  $form['type']  = array(
+    '#type'  => 'value',
+    '#value' => $type->configuration['content_type'],
   );
-  taxonomy_form_alter($form, array(), $type['content_type'] . '_node_form');
+  $form['#node'] = (object)array(
+    'nid'      => 0,
+    'type'     => $type->configuration['content_type'],
+    'taxonomy' => $type->configuration['taxonomy'],
+  );
+  taxonomy_form_alter($form, array(), $type->configuration['content_type'] . '_node_form');
 
   //Remove the attributes needed for taxonomy_form_alter
   unset($form['type']);
@@ -493,7 +494,7 @@ function datapoint_ahah_source_configuration() {
 
   $type_name = $_POST['source_type'];
   if (!empty($type_name)) {
-    $type = datapoint_source_type($type_name);
+    $type = datapoint_source_type_load($type_name);
     $set = datapoint_source_configuration_form($type, array());
   }
   else {
@@ -511,19 +512,59 @@ function datapoint_ahah_source_configuration() {
   exit;
 }
 
-function _datapoint_admin_edit_source_type($form_state, $type) {
-  $type = datapoint_source_type($type);
-  return _datapoint_admin_add_source_type_configure($form_state, $type['parser'], $type['content_type'], $type);
+function _datapoint_admin_edit_source_type($form_state, $source_type) {
+  if (!is_object($source_type)) {
+    $source_type = datapoint_source_type_load($source_type);
+  }
+  return _datapoint_admin_add_source_type_configure($form_state, $source_type->configuration['parser'], $source_type->configuration['content_type'], $source_type);
 }
 
 function _datapoint_admin_edit_source_type_submit($form, $form_state) {
-  $configuration = datapoint_source_type_configuration_from_form_values($form_state['values']);
-  datapoint_add_source_type($configuration, TRUE);
+  $source_type = datapoint_source_type_configuration_from_form_values($form_state['values']);
+  $current     = datapoint_source_type_load($source_type->typename);
+  $update      = $current->export_type != EXPORT_IN_CODE;
+
+  datapoint_source_type_save($source_type, $update);
 
   drupal_set_message(t('The datapoint source type "!name" has been updated', array(
-    '!name' => $configuration['name'],
+    '!name' => $source_type->name,
   )));
   drupal_goto('admin/content/datapoint/source-types');
+}
+
+/**
+ * Provide a form to confirm deletion of a source type.
+ */
+function datapoint_delete_confirm_source_type(&$form_state, $source_type) {
+  if (!is_object($source_type)) {
+    $source_type = datapoint_source_type_load($source_type);
+  }
+  if ($source_type->export_type == (EXPORT_IN_CODE | EXPORT_IN_DATABASE)) {
+    $submit = t('revert');
+  }
+/*  elseif ($preset->export_type != EXPORT_IN_CODE) {
+    $submit = t('delete');
+  }*/
+  else {
+    drupal_not_found();
+    die;
+  }
+  $form['typename'] = array('#type' => 'value', '#value' => $source_type->typename);
+  return confirm_form($form,
+    t('Are you sure you want to !delete the source type "@name"?', array('!delete' => $submit, '@name' => $source_type->name)),
+    !empty($_GET['destination']) ? $_GET['destination'] : 'admin/content/datapoint/source-types',
+    t('This action cannot be undone.'),
+    $submit, t('Cancel')
+  );
+}
+
+/**
+ * Handle the submit button to delete a mini panel.
+ */
+function datapoint_delete_confirm_source_type_submit($form, &$form_state) {
+  $source_type = datapoint_source_type_load($form_state['values']['typename']);
+  datapoint_source_type_delete($source_type);
+  $form_state['redirect'] = 'admin/content/datapoint/source-types';
 }
 
 function _datapoint_admin_edit_source($form_state, $sid) {
@@ -540,7 +581,7 @@ function _datapoint_admin_edit_source($form_state, $sid) {
   $form['source_type'] = array(
     '#type' => 'item',
     '#title' => t('Source type'),
-    '#value' => l($source['source_type'], 'admin/content/datapoint/source-type/' . $source['source_type']),
+    '#value' => l($source['source_type'], 'admin/content/datapoint/source-types/' . $source['source_type']),
   );
 
   $form['managed'] = array(
@@ -549,8 +590,8 @@ function _datapoint_admin_edit_source($form_state, $sid) {
     '#value' => $source['managed']?t('Yes'):t('No'),
   );
 
-  $source_type = datapoint_source_type($source['source_type']);
-  $info = datapoint_parser_info($source_type['parser']);
+  $source_type = datapoint_source_type_load($source['source_type']);
+  $info = datapoint_parser_info($source_type->configuration['parser']);
   if (isset($info['source configuration'])) {
     $conf_form = call_user_func($info['source configuration'], $source['source configuration']);
   }
@@ -563,7 +604,7 @@ function _datapoint_admin_edit_source($form_state, $sid) {
   $form['last_update'] = array(
     '#type' => 'item',
     '#title' => t('Last update'),
-    '#value' => $source['last_update']?format_date($source['last_update']):t('Not updated yet.'),
+    '#value' => $source['last_update'] ? format_date($source['last_update']) : t('Not updated yet.'),
   );
 
   _datapoint_recursively_disable_form($form);
@@ -662,15 +703,27 @@ function datapoint_export_source($form_state, $sid) {
   }
 }
 
-function datapoint_export_source_type($form_state, $type) {
-  $source_type = datapoint_source_type($type);
-
+/**
+ * Page callback to export a source type to PHP code.
+ */
+function datapoint_export_source_type(&$form_state, $source_type) {
+  //TODO: perhaps remove _datapoint_export_form which was used by this function?
+  if (!is_object($source_type)) {
+    $source_type = datapoint_source_type_load($source_type);
+  }
   if ($source_type) {
-    drupal_set_title(t('Export of !name', array('!name' => $source_type['name'])));
-    drupal_add_css(drupal_get_path('module', 'datapoint') . '/datapoint.css');
-    unset($source_type['configuration']);
+    drupal_set_title(check_plain($source_type->name));
+    $code = datapoint_source_type_export($source_type);
 
-    return _datapoint_export_form($source_type);
+    $lines = substr_count($code, "\n");
+    $form['code'] = array(
+      '#type'          => 'textarea',
+      '#title'         => $source_type->name,
+      '#default_value' => $code,
+      '#rows'          => $lines,
+    );
+
+    return $form;
   }
   else {
     drupal_not_found();

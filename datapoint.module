@@ -182,13 +182,13 @@ function datapoint_menu() {
   );
   $menu['admin/content/datapoint/source-types'] = array(
     'title' => 'Source types',
-    'page callback' => '_datapoint_admin_source_types',
+    'page callback' => '_datapoint_admin_source_type_list',
     'access arguments' => array('administer datapoint sources'),
     'file' => 'datapoint.admin.inc',
     'type' => MENU_LOCAL_TASK,
     'weight' => -5,
   );
-  $menu['admin/content/datapoint/add-source-type'] = array(
+  $menu['admin/content/datapoint/source-types/add'] = array(
     'title' => 'Add source type',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('_datapoint_admin_add_source_type'),
@@ -205,7 +205,7 @@ function datapoint_menu() {
     'file' => 'datapoint.admin.inc',
     'type' => MENU_CALLBACK,
   );
-  $menu['admin/content/datapoint/source-type/%'] = array(
+  $menu['admin/content/datapoint/source-types/%datapoint_source_type'] = array(
     'title' => 'Source type',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('_datapoint_admin_edit_source_type', 4),
@@ -223,9 +223,18 @@ function datapoint_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  $menu['admin/content/datapoint/source-types/export/%'] = array(
+  $menu['admin/content/datapoint/source-types/%datapoint_source_type/delete'] = array(
+    'title' => 'Delete source type',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('datapoint_export_source_type', 5),
+    'page arguments' => array('datapoint_delete_confirm_source_type', 4),
+    'access arguments' => array('administer datapoint sources'),
+    'file' => 'datapoint.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $menu['admin/content/datapoint/source-types/%datapoint_source_type/export'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('datapoint_export_source_type', 4),
     'access arguments' => array('administer datapoint sources'),
     'file' => 'datapoint.admin.inc',
     'type' => MENU_CALLBACK,
@@ -286,13 +295,6 @@ function datapoint_menu() {
   );
   $menu['datapoint/ahah/source_configuration'] = array(
     'page callback' => 'datapoint_ahah_source_configuration',
-    'access arguments' => array('administer datapoint sources'),
-    'file' => 'datapoint.admin.inc',
-    'type' => MENU_CALLBACK,
-  );
-  $menu['datapoint/ahah/custom-node-configuration'] = array(
-    'page callback' => 'datapoint_ahah_custom_node_configuration',
-    'page arguments' => array(3, 4),
     'access arguments' => array('administer datapoint sources'),
     'file' => 'datapoint.admin.inc',
     'type' => MENU_CALLBACK,
@@ -404,27 +406,6 @@ function _datapoint_source_fields(&$node, $field_name, $field, $source, $datapoi
 }
 
 /**
- * Loads the data point source type.
- *
- * @return array Source type configuration.
- */
-function datapoint_source_type($type) {
-  static $cache = array();
-
-  $res = db_query("SELECT * FROM {datapoint_source_type} WHERE type='%s'", $type);
-  if ($source_type = db_fetch_array($res)) {
-    // Unserialize configuration and merge it into the source type
-    $configuration = unserialize($source_type['configuration']);
-    $cache[$type] = array_merge($source_type, $configuration);
-  }
-  else {
-    return FALSE;
-  }
-
-  return $cache[$type];
-}
-
-/**
  * Loads a data point source.
  *
  * @return array Source configuration.
@@ -486,13 +467,88 @@ function datapoint_parser_info($parser_module) {
 }
 
 /**
- * Saves a source type configuration in the database
+ * Loads the data point source type.
+ *
+ * @return array Source type configuration.
+ */
+function datapoint_source_type_load($type) {
+  ctools_include('export');
+  $result = ctools_export_load_object('datapoint_source_type', 'names', array($type));
+  if (isset($result[$type])) {
+    return $result[$type];
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Load all source types
+ *
+ * @return array
+ */
+function datapoint_source_type_load_all() {
+  ctools_include('export');
+  $result = ctools_export_load_object('datapoint_source_type');
+  return $result;
+}
+
+/**
+ * Saves a source type in the database
  *
  * @return void
  */
-function datapoint_add_source_type($source_type, $update = FALSE) {
-  _datapoint_prewrite($source_type, 'datapoint_source_type');
-  drupal_write_record('datapoint_source_type', $source_type, $update?array('type'):NULL);
+function datapoint_source_type_save($source_type, $update = FALSE) {
+  drupal_write_record('datapoint_source_type', $source_type, $update ? 'typename' : array());
+}
+
+/**
+ * Remove a source type.
+ *
+ * @return void
+ */
+function datapoint_source_type_delete($source_type) {
+  //TODO: Finish this - we need to disable all sources etc that is dependent on this source type if it is deleted for real (it might also just be deactivated)
+  db_query("DELETE FROM {datapoint_source_type} WHERE typename = '%s'", $source_type->typename);
+}
+
+/**
+ * Export a source type
+ *
+ * @return string
+ */
+function datapoint_source_type_export($type, $indent = '') {
+  ctools_include('export');
+  $output = ctools_export_object('datapoint_source_type', $type, $indent);
+  return $output;
+}
+
+/**
+ * Lists all available source types
+ *
+ * @return array
+ */
+function datapoint_source_type_list() {
+  $return = array();
+  $source_types = datapoint_source_type_load_all();
+  foreach ($source_types as $source_type) {
+    $return[$source_type->typename] = $source_type->name;
+  }
+  return $return;
+}
+
+/**
+ * Gets the defined source types as a associative array type=>name
+ *
+ * @return array
+ */
+function datapoint_source_type_options_list() {
+  $source_types = datapoint_source_type_load_all();
+  $result = array();
+  foreach ($source_types as $source_type) {
+    $result[$source_type->typename] = $source_type->name;
+  }
+  return $result;
 }
 
 /**
@@ -544,20 +600,6 @@ function datapoint_save_source($source) {
  */
 function datapoint_delete_source($source) {
   //TODO: Finish this
-}
-
-/**
- * Gets the defined source types as a associative array type=>name
- *
- * @return void
- */
-function datapoint_source_types() {
-  $types = array();
-  $res = db_query("SELECT type, name FROM {datapoint_source_type}");
-  while ($o = db_fetch_object($res)) {
-    $types[$o->type] = $o->name;
-  }
-  return $types;
 }
 
 /**
@@ -804,17 +846,17 @@ function datapoint_update_nodes($amount = 10) {
  * @return void
  */
 function datapoint_update_node($source, $datapoint, $vertex) {
-  $source_type = datapoint_source_type($source['source_type']);
+  $source_type = datapoint_source_type_load($source['source_type']);
 
   // Check if we should create a node
-  if (!empty($source_type['content_type'])) {
+  if (!empty($source_type->configuration['content_type'])) {
     $node = NULL;
     if ($datapoint->nid) {
       $node = node_load($datapoint->nid);
     }
     if (!$node) {
       $node = new stdClass();
-      $node->type = $source_type['content_type'];
+      $node->type = $source_type->configuration['content_type'];
 
       module_load_include('inc', 'node', 'node.pages');
 
@@ -825,8 +867,8 @@ function datapoint_update_node($source, $datapoint, $vertex) {
       $node->taxonomy = $source['taxonomy'];
     }
 
-    $fields = $source_type['fields'];
-    $source_fields = datapoint_source_fields($source_type['parser']);
+    $fields = $source_type->configuration['fields'];
+    $source_fields = datapoint_source_fields($source_type->configuration['parser']);
     $managed_fields = datapoint_managed_fields($node->type);
 
     // Iterate through the fields configured in the source type and

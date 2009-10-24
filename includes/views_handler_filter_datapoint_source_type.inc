@@ -9,7 +9,7 @@ class views_handler_filter_datapoint_source_type extends views_handler_filter_in
   function get_value_options() {
     if (!isset($this->value_options)) {
       $this->value_title = t('Source type');
-      $types = datapoint_source_types();
+      $types = datapoint_source_type_options_list();
       foreach ($types as $type => $name) {
         $options[$type] = $name;
       }

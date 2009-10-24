@@ -4,3 +4,4 @@ version = "6.x-0.1"
 core = "6.x"
 description = "Module that consumes feeds describing data points"
 package = Datapoint
+dependencies[] = ctools

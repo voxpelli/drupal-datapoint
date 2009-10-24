@@ -81,8 +81,15 @@ function datapoint_schema() {
   );
 
   $schema['datapoint_source_type'] = array(
+    'export' => array(
+      'key'             => 'typename',
+      'identifier'      => 'source_type',
+      'can disable'     => FALSE,
+      'export callback' => 'datapoint_source_type_export',
+      'list callback'   => 'datapoint_source_type_list',
+    ),
     'fields' => array(
-      'type' => array(
+      'typename' => array(
         'description' => t('The machine-readable name of this content type.'),
         'type' => 'varchar',
         'length' => 64,
@@ -101,6 +108,8 @@ function datapoint_schema() {
         'type' => 'text',
         'not null' => TRUE,
         'size' => 'big',
+        'serialize' => TRUE,
+        'object default' => array(),
       ),
       'managed' => array(
         'description' => t('Set to 1 if the source type is managed by another module and shouldn\'t be exposed in admin.'),
@@ -109,9 +118,10 @@ function datapoint_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0,
+        'no export' => TRUE,
       ),
     ),
-    'primary key' => array('type'),
+    'primary key' => array('typename'),
   );
 
   $schema['datapoint'] = array(
@@ -266,6 +276,20 @@ function datapoint_update_6003() {
   ));
 
   db_add_index($ret, 'datapoint_source', 'status', array('status'));
+
+  return $ret;
+}
+
+function datapoint_update_6004() {
+  $ret = array();
+
+  db_change_field($ret, 'datapoint_source_type', 'type', 'typename', array(
+    'description' => t('The machine-readable name of this content type.'),
+    'type' => 'varchar',
+    'length' => 64,
+    'not null' => TRUE,
+    'default' => '',
+  ));
 
   return $ret;
 }
