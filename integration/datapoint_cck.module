@@ -4,6 +4,8 @@
 /**
  * Implementation of hook_datapoint_managed_fields_alter().
  *
+ * @param $fields
+ * @param $type node type
  * @return void
  */
 function datapoint_cck_datapoint_managed_fields_alter(&$fields, $type) {
