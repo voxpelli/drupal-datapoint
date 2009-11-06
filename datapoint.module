@@ -698,6 +698,9 @@ function datapoint_store($source, &$results) {
   $pointapi_hooks = module_implements('datapoint_pointapi');
   $vertexapi_hooks = module_implements('datapoint_vertexapi');
 
+  $source_type = datapoint_source_type($source['source_type']);
+  $has_nodes = empty($source_type['content_type']) ? 0 : 1;
+
   foreach ($results as $extid => $point) {
     foreach ($pointapi_hooks as $name) {
       $function = $name . '_datapoint_pointapi';
@@ -711,11 +714,9 @@ function datapoint_store($source, &$results) {
     if ($dbp) {
       if (!$only_add) {
         // ...delete vertexes that overlap or are later than what we're currently adding
-        db_query("DELETE FROM {{$vertex_table}} WHERE pid=%d AND valid_from>=%d",
-          $dbp->pid, $point->getStartTime());
+        db_query("DELETE FROM {{$vertex_table}} WHERE pid=%d AND valid_from>=%d", $dbp->pid, $point->getStartTime());
         // ...update the data point
-        db_query("UPDATE {datapoint} SET name='%s', data='%s', dirty=%d WHERE pid=%d",
-          $point->getName(), serialize($point->getData()), $point->setHasNodes() ? 1 : 0, $dbp->pid);
+        db_query("UPDATE {datapoint} SET name='%s', data='%s', dirty=%d WHERE pid=%d", $point->getName(), serialize($point->getData()), $has_nodes, $dbp->pid);
       }
       else { // We're only allowed to add vertexes
         // ...find out what time we should start adding from
@@ -726,8 +727,7 @@ function datapoint_store($source, &$results) {
     }
     else {
       // ...otherwise we just want to add the datapoint
-      db_query("INSERT INTO {datapoint}(sid, external_id, name, data, dirty) VALUES(%d, '%s', '%s', '%s', %d)",
-        $source['sid'], $extid, $point->getName(), serialize($point->getData()), $point->setHasNodes() ? 1 : 0);
+      db_query("INSERT INTO {datapoint}(sid, external_id, name, data, dirty) VALUES(%d, '%s', '%s', '%s', %d)", $source['sid'], $extid, $point->getName(), serialize($point->getData()), $has_nodes);
       $dbp = datapoint_by_external_id($source['sid'], $extid);
     }
 

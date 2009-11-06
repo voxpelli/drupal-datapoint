@@ -153,7 +153,7 @@ function _datapoint_admin_add_source_type($state) {
 
   //Build the node type options
   $node_types = node_get_types();
-  $node_type_options = array('' => t('-- Select a node type'));
+  $node_type_options = array('' => t("-- Don't create nodes"));
   foreach ($node_types as $type => $type_info) {
     $node_type_options[$type] = $type_info->name;
   }

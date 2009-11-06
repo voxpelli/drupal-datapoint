@@ -47,7 +47,6 @@ function _datapoint_yahooweather_datapoint_parseresult($data, &$source, &$result
 
   $point = $point = $result->point($source['source configuration']['city code']);
   $point->setName($source['source configuration']['city code']);
-  $point->setHasNodes(FALSE);
 
   $items = $doc->getElementsByTagNameNS(NS_YAHOO_WEATHER, 'forecast');
   foreach ($items as $item) {
