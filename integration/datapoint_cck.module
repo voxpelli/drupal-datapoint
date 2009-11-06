@@ -56,6 +56,9 @@ function _datapoint_cck_setters($type) {
     case 'datestamp':
       return '_datapoint_cck_set_datestamp';
     break;
+    case 'link':
+      return '_datapoint_cck_set_link';
+    break;
   }
 }
 
@@ -88,4 +91,9 @@ function _datapoint_cck_set_datestamp(&$node, $field, $setter, $value) {
   else {
     $node->$field_name = array(array('value' => $value));
   }
+}
+
+function _datapoint_cck_set_link(&$node, $field, $setter, $value) {
+  $field_name = $setter['field_name'];
+  $node->$field_name = array(array('url' => $value));
 }

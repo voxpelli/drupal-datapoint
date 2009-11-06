@@ -104,12 +104,6 @@ class Datapoint implements IteratorAggregate {
     return $this->data;
   }
 
-  public function setHasNodes($value = NULL) {
-    if ($value !== NULL) {
-      $this->hasNodes = $value;
-    }
-    return $this->hasNodes;
-  }
 }
 
 class DatapointVertex {
