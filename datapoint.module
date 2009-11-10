@@ -673,14 +673,16 @@ function datapoint_store($source, &$results) {
       if (!$only_add) {
         // ...delete vertexes that overlap or are later than what we're currently adding
         db_query("DELETE FROM {{$vertex_table}} WHERE pid=%d AND valid_from>=%d", $dbp->pid, $point->getStartTime());
-        // ...update the data point
-        db_query("UPDATE {datapoint} SET name='%s', data='%s', dirty=%d WHERE pid=%d", $point->getName(), serialize($point->getData()), $has_nodes, $dbp->pid);
       }
       else { // We're only allowed to add vertexes
         // ...find out what time we should start adding from
         $last_vertex_time = db_result(db_query("SELECT MAX(valid_from) FROM {{$vertex_table}} WHERE pid=%d",
           $dbp->pid));
-        $last_vertex_time = $last_vertex_time ? $last_vertex_time : 0;
+      }
+      $serializedpointdata = serialize($point->getData());
+      if ($dbp->dirty != $has_nodes || $dbp->name != $point->getName() || $dbp->data != $serializedpointdata) {
+        // ...update the data point
+        db_query("UPDATE {datapoint} SET name='%s', data='%s', dirty=%d WHERE pid=%d", $point->getName(), $serializedpointdata, $has_nodes, $dbp->pid);
       }
     }
     else {
@@ -694,7 +696,7 @@ function datapoint_store($source, &$results) {
 
     foreach ($point as $vertex) {
       // Skip old vertexes
-      if ($only_add && ($vertex->getTime() <= $last_vertex_time)) {
+      if ($only_add && $dbp && ($last_vertex_time !== NULL && $last_vertex_time !== FALSE && $vertex->getTime() <= $last_vertex_time)) {
         continue;
       }
 
