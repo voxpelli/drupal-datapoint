@@ -566,7 +566,9 @@ function _datapoint_admin_edit_source($form_state, $sid) {
     '#value' => $source['last_update']?format_date($source['last_update']):t('Not updated yet.'),
   );
 
-  _datapoint_recursively_disable_form($form);
+  if ($source['managed']) {
+    _datapoint_recursively_disable_form($form);
+  }
 
   $form['pinged'] = array(
     '#type' => 'checkbox',
@@ -586,7 +588,7 @@ function _datapoint_admin_edit_source_submit($form, $form_state) {
   $values = $form_state['values'];
   $source = datapoint_source($values['sid']);
 
-  // Only allow updates of pinged-state when the source is managed
+  // This previously only allow updates of pinged-state when the source was managed - but I changed it / Pelle
   if ($source['managed']) {
     datapoint_save_source(array(
       'sid' => $values['sid'],
@@ -602,6 +604,7 @@ function _datapoint_admin_edit_source_submit($form, $form_state) {
       $configuration = array();
     }
     $source['source configuration'] = $configuration;
+    $source['pinged'] = $values['pinged'];
     datapoint_save_source($source);
   }
 
