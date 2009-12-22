@@ -33,7 +33,7 @@ function _datapoint_admin_index_page() {
   $page_size = 20;
 
   $pager_page_array[0] = $page;
-  $pager_total[0] = $total;
+  $pager_total[0] = ceil($total / $page_size);
 
   $res = db_query_range("SELECT ds.sid, ds.source_type, ds.name, ds.pinged, ds.last_update, ds.managed, COUNT(d.pid) as dirty FROM {datapoint_source} ds
     LEFT JOIN {datapoint} d ON d.sid = ds.sid AND d.dirty = 1
