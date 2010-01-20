@@ -57,6 +57,7 @@ function _datapoint_admin_index_page() {
       l(t('Edit'), 'admin/content/datapoint/source/' . $row->sid, $dest),
       l(t('Refresh'), 'admin/content/datapoint/source/refresh/' . $row->sid, $dest),
       l(t('Export'), 'admin/content/datapoint/source/export/' . $row->sid, $dest),
+      l(t('Delete'), 'admin/content/datapoint/source/delete/' . $row->sid, $dest),
     );
   }
   $out .= theme('table', $header, $rows);
@@ -630,9 +631,9 @@ function datapoint_delete_source_confirm($form_state, $sid) {
     );
 
     return confirm_form($form,
-      t('Are you sure you want to delete %name?', array('%name' => $node['name'])),
+      t('Are you sure you want to delete %name?', array('%name' => $source['name'])),
       isset($_GET['destination']) ? $_GET['destination'] : 'admin/content/datapoint',
-      t('This action cannot be undone.'),
+      t('This action cannot be undone. No nodes created from the source will be deleted.'),
       t('Delete'),
       t('Cancel')
     );

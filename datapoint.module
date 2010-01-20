@@ -542,8 +542,12 @@ function datapoint_save_source($source) {
  * @param array $source
  * @return void
  */
-function datapoint_delete_source($source) {
-  //TODO: Finish this
+function datapoint_delete_source($sid) {
+  $source = datapoint_source($sid);
+  if ($source) {
+    db_query('DELETE v, d, s FROM {' . $source['parser'] . '_vertex} AS v, dinby_datapoint AS d, dinby_datapoint_source AS s WHERE v.pid = d.pid AND d.sid = s.sid AND s.sid = %d', $sid);
+    drupal_set_message(t('Source %name has now been deleted', array('%name' => $source['name'])));
+  }
 }
 
 /**
