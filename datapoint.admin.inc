@@ -39,7 +39,7 @@ function _datapoint_admin_index_page() {
     LEFT JOIN {datapoint} d ON d.sid = ds.sid AND d.dirty = 1
     GROUP BY ds.sid, ds.source_type, ds.name, ds.pinged, ds.last_update, ds.managed
     ORDER BY name, managed", $page * $page_size, $page_size);
-  $header = array(t('Name'), t('Id'), t('Type'), t('Updated'), t('Queued'), array('data' => t('Operations'), 'colspan' => '3'));
+  $header = array(t('Name'), t('Id'), t('Type'), t('Updated'), t('Queued'), array('data' => t('Operations'), 'colspan' => '4'));
   $rows = array();
 
   if ($total>$page_size) {
